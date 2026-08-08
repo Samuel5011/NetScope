@@ -1,3 +1,6 @@
-def main():
+def main() -> None:
     print("NetScope network diagnostic toolkit")
+
+
+
     

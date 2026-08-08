@@ -1,5 +1,7 @@
 import ipaddress
+
 from netscope.exceptions import InvalidTargetError
+
 
 def _is_hostname_valid(hostname: str) -> bool:
     labels = hostname.split(".")
