@@ -11,6 +11,7 @@ def test_valid_hostname() -> None:
 def test_strips_whitespace() -> None:
     assert validate_target("  google.com  ") == "google.com"
 
+
 def test_whitespace_only_target_rejected() -> None:
     with pytest.raises(InvalidTargetError):
         validate_target("      ")

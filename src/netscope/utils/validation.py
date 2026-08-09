@@ -19,12 +19,12 @@ def _is_hostname_valid(hostname: str) -> bool:
 
     return True
 
+
 def validate_target(value: str) -> str:
     cleaned_target = value.strip()
 
     if cleaned_target == "":
         raise InvalidTargetError("Target cannot be empty")
-
 
     if "://" in cleaned_target:
         raise InvalidTargetError("Target must be a hostname or IP address, not a URL")
@@ -36,7 +36,7 @@ def validate_target(value: str) -> str:
         ipaddress.ip_address(cleaned_target)
         return cleaned_target
     except ValueError:
-         pass
+        pass
 
     if _is_hostname_valid(cleaned_target):
         return cleaned_target

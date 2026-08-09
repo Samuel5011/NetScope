@@ -6,6 +6,7 @@ from netscope.models.target import Target
 
 
 def resolve_dns(target: Target) -> DNSResult:
+    """Resolve a target and keep lookup failures in the result."""
     start = time.perf_counter()
 
     try:
@@ -20,6 +21,7 @@ def resolve_dns(target: Target) -> DNSResult:
         )
 
     except socket.gaierror as exc:
+        # Bad hostnames are still a normal diagnostic result, not a crash.
         response_time_ms = (time.perf_counter() - start) * 1000
 
         return DNSResult(
