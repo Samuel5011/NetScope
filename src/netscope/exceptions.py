@@ -4,3 +4,7 @@ class InvalidTargetError(ValueError):
 
 class InvalidPortError(ValueError):
     """Raised when a TCP port or port range is invalid."""
+
+
+class UnsupportedPlatformError(RuntimeError):
+    """Raised when the operating system has no supported command."""

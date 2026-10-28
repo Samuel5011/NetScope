@@ -71,4 +71,4 @@ def test_trace_route_handles_missing_command(monkeypatch) -> None:
 
     assert result.success is False
     assert result.hops == []
-    assert result.error == "traceroute was not found"
+    assert result.error == "Required command not found: traceroute"

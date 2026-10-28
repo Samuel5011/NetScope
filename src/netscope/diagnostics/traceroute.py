@@ -1,10 +1,11 @@
 import ipaddress
-import platform
 import re
-import subprocess
 
+from netscope.exceptions import UnsupportedPlatformError
 from netscope.models.target import Target
 from netscope.models.trace_result import TraceHop, TraceResult
+from netscope.utils.platform import get_platform_name
+from netscope.utils.subprocess_runner import run_command
 
 _HOP_PATTERN = re.compile(r"^\s*(\d+)\s+(.*)$")
 _LATENCY_PATTERN = re.compile(r"<?(\d+(?:\.\d+)?)\s*ms", re.IGNORECASE)
@@ -78,7 +79,7 @@ def _build_command(
     max_hops: int,
     timeout: float,
 ) -> list[str]:
-    if platform.system().lower() == "windows":
+    if get_platform_name() == "windows":
         return [
             "tracert",
             "-d",
@@ -106,18 +107,19 @@ def trace_route(
     timeout: float = 2.0,
 ) -> TraceResult:
     """Trace the network path to a target."""
-    command = _build_command(target, max_hops, timeout)
+    if max_hops < 1:
+        raise ValueError("Maximum hops must be at least 1")
+    if timeout <= 0:
+        raise ValueError("Timeout must be greater than 0")
 
     try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=max_hops * timeout * 3 + 5,
-            check=False,
-        )
-    except (subprocess.TimeoutExpired, OSError) as exc:
+        command = _build_command(target, max_hops, timeout)
+    except UnsupportedPlatformError as exc:
         return TraceResult(target=target, hops=[], success=False, error=str(exc))
+
+    result = run_command(command, max_hops * timeout * 3 + 5)
+    if result.error is not None:
+        return TraceResult(target=target, hops=[], success=False, error=result.error)
 
     hops = parse_traceroute_output(result.stdout)
     error = result.stderr.strip() or None

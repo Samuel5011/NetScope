@@ -1,63 +1,64 @@
-import platform
 import re
-import subprocess
 
+from netscope.exceptions import UnsupportedPlatformError
 from netscope.models.ping_result import PingResult
 from netscope.models.target import Target
+from netscope.utils.platform import get_platform_name
+from netscope.utils.subprocess_runner import run_command
+
+_UNIX_PACKET_LOSS_PATTERN = re.compile(r"(\d+(?:\.\d+)?)%\s*packet loss")
+_WINDOWS_PACKET_LOSS_PATTERN = re.compile(r"\((\d+(?:\.\d+)?)%\s*loss\)", re.IGNORECASE)
+_UNIX_LATENCY_PATTERN = re.compile(
+    r"(?:round-trip|rtt).*?=\s*[\d.]+/([\d.]+)/",
+)
+_WINDOWS_LATENCY_PATTERN = re.compile(r"Average\s*=\s*(\d+)ms", re.IGNORECASE)
 
 
-def ping_target(target: Target) -> PingResult:
+def _parse_first_float(
+    patterns: tuple[re.Pattern[str], ...], output: str
+) -> float | None:
+    for pattern in patterns:
+        match = pattern.search(output)
+        if match:
+            return float(match.group(1))
+    return None
+
+
+def ping_target(target: Target, count: int = 4, timeout: float = 10.0) -> PingResult:
     """Run ping and return the useful parts as a result object."""
-    system = platform.system().lower()
-
-    # Windows and Unix-like ping commands use different flags for the count.
-    if system == "windows":
-        command = ["ping", "-n", "4", target.value]
-    else:
-        command = ["ping", "-c", "4", target.value]
+    if count < 1:
+        raise ValueError("Ping count must be at least 1")
+    if timeout <= 0:
+        raise ValueError("Timeout must be greater than 0")
 
     try:
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
+        system = get_platform_name()
+    except UnsupportedPlatformError as exc:
+        return PingResult(target, False, None, None, str(exc))
 
-        output = result.stdout
+    count_flag = "-n" if system == "windows" else "-c"
+    command = ["ping", count_flag, str(count), target.value]
+    result = run_command(command, timeout)
 
-        # Pull the percentage before "% packet loss" from ping output.
-        packet_loss_match = re.search(
-            r"(\d+(?:\.\d+)?)% packet loss",
-            output,
-        )
+    if result.error is not None:
+        return PingResult(target, False, None, None, result.error)
 
-        packet_loss = float(packet_loss_match.group(1)) if packet_loss_match else None
+    output = "\n".join(part for part in (result.stdout, result.stderr) if part)
+    packet_loss = _parse_first_float(
+        (_UNIX_PACKET_LOSS_PATTERN, _WINDOWS_PACKET_LOSS_PATTERN),
+        output,
+    )
+    response_time = _parse_first_float(
+        (_UNIX_LATENCY_PATTERN, _WINDOWS_LATENCY_PATTERN),
+        output,
+    )
+    reachable = result.returncode == 0
+    error = None if reachable else result.stderr.strip() or "Target unreachable"
 
-        # The middle value in min/avg/max is the average response time.
-        response_time_match = re.search(
-            r"(?:round-trip|rtt).*?=\s*[\d.]+/([\d.]+)/",
-            output,
-        )
-
-        response_time = (
-            float(response_time_match.group(1)) if response_time_match else None
-        )
-
-        return PingResult(
-            target=target,
-            reachable=result.returncode == 0,
-            response_time_ms=response_time,
-            packet_loss_percent=packet_loss,
-            error=None if result.returncode == 0 else "Target unreachable",
-        )
-
-    except (subprocess.TimeoutExpired, OSError) as exc:
-        return PingResult(
-            target=target,
-            reachable=False,
-            response_time_ms=None,
-            packet_loss_percent=None,
-            error=str(exc),
-        )
+    return PingResult(
+        target=target,
+        reachable=reachable,
+        response_time_ms=response_time,
+        packet_loss_percent=packet_loss,
+        error=error,
+    )
