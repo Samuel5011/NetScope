@@ -38,3 +38,27 @@ def test_run_command_handles_missing_executable(monkeypatch) -> None:
 
     assert result.returncode is None
     assert result.error == "Required command not found: example"
+
+
+def test_run_command_handles_permission_error(monkeypatch) -> None:
+    def permission_denied(*args, **kwargs):
+        raise PermissionError
+
+    monkeypatch.setattr(subprocess, "run", permission_denied)
+
+    result = run_command(["example"], timeout=1)
+
+    assert result.returncode is None
+    assert result.error == "Permission denied while running: example"
+
+
+def test_run_command_handles_other_os_errors(monkeypatch) -> None:
+    def fail(*args, **kwargs):
+        raise OSError("Resource unavailable")
+
+    monkeypatch.setattr(subprocess, "run", fail)
+
+    result = run_command(["example"], timeout=1)
+
+    assert result.returncode is None
+    assert result.error == "Could not run example: Resource unavailable"
