@@ -17,6 +17,16 @@ def _set_arguments(monkeypatch, *arguments: str) -> None:
     monkeypatch.setattr(sys, "argv", ["netscope", *arguments])
 
 
+def test_version_option(monkeypatch, capsys) -> None:
+    _set_arguments(monkeypatch, "--version")
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main()
+
+    assert exc_info.value.code == 0
+    assert capsys.readouterr().out.startswith("netscope ")
+
+
 def test_dns_command_text_output(monkeypatch, capsys) -> None:
     _set_arguments(monkeypatch, "dns", "example.com")
 

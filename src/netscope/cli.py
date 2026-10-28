@@ -1,5 +1,6 @@
 import argparse
 import ipaddress
+from importlib.metadata import PackageNotFoundError, version
 
 from netscope.diagnostics.dns import resolve_dns
 from netscope.diagnostics.ping import ping_target
@@ -46,10 +47,27 @@ def _add_json_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_target_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("target", help="Hostname or IP address")
+
+
+def _get_version() -> str:
+    try:
+        return version("netscope-toolkit")
+    except PackageNotFoundError:
+        return "unknown"
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="netscope",
         description="Network diagnostic toolkit",
+        epilog="Run 'netscope <command> --help' for command-specific options.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {_get_version()}",
     )
 
     subparsers = parser.add_subparsers(
@@ -61,21 +79,21 @@ def main() -> None:
         "dns",
         help="Resolve a target using DNS",
     )
-    dns_parser.add_argument("target")
+    _add_target_argument(dns_parser)
     _add_json_argument(dns_parser)
 
     ping_parser = subparsers.add_parser(
         "ping",
         help="Ping a network target",
     )
-    ping_parser.add_argument("target")
+    _add_target_argument(ping_parser)
     _add_json_argument(ping_parser)
 
     trace_parser = subparsers.add_parser(
         "trace",
         help="Trace the network path to a target",
     )
-    trace_parser.add_argument("target")
+    _add_target_argument(trace_parser)
     trace_parser.add_argument(
         "--max-hops",
         type=int,
@@ -94,7 +112,7 @@ def main() -> None:
         "scan",
         help="Scan TCP ports on a target",
     )
-    scan_parser.add_argument("target")
+    _add_target_argument(scan_parser)
     scan_parser.add_argument(
         "--ports",
         default="22,80,443",
@@ -112,7 +130,7 @@ def main() -> None:
         "diagnose",
         help="Run a combined network diagnostic",
     )
-    diagnose_parser.add_argument("target")
+    _add_target_argument(diagnose_parser)
     diagnose_parser.add_argument(
         "--ports",
         default="22,80,443",
