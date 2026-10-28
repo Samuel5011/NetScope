@@ -31,15 +31,44 @@ def scan_port(
                 target=target,
                 port=port,
                 open=True,
+                state="open",
                 service=service,
                 error=None,
             )
 
-    except (ConnectionRefusedError, TimeoutError, OSError) as exc:
+    except ConnectionRefusedError:
         return PortResult(
             target=target,
             port=port,
             open=False,
+            state="closed",
+            service=None,
+            error=None,
+        )
+    except TimeoutError:
+        return PortResult(
+            target=target,
+            port=port,
+            open=False,
+            state="filtered",
+            service=None,
+            error="Connection timed out",
+        )
+    except socket.gaierror as exc:
+        return PortResult(
+            target=target,
+            port=port,
+            open=False,
+            state="error",
+            service=None,
+            error=f"Name resolution failed: {exc}",
+        )
+    except OSError as exc:
+        return PortResult(
+            target=target,
+            port=port,
+            open=False,
+            state="error",
             service=None,
             error=str(exc),
         )

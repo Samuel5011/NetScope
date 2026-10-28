@@ -10,11 +10,12 @@ def test_parse_unix_traceroute_output() -> None:
  1  router.local (192.168.1.1)  1.123 ms  0.456 ms  0.789 ms
  2  * * *
  3  93.184.216.34  10.100 ms  11.200 ms  12.300 ms
+ 4  fe80::1%en0  2.000 ms  2.100 ms  2.200 ms
 """
 
     hops = parse_traceroute_output(output)
 
-    assert len(hops) == 3
+    assert len(hops) == 4
     assert hops[0].number == 1
     assert hops[0].hostname == "router.local"
     assert hops[0].address == "192.168.1.1"
@@ -22,6 +23,7 @@ def test_parse_unix_traceroute_output() -> None:
     assert hops[1].address is None
     assert hops[1].response_times_ms == []
     assert hops[2].address == "93.184.216.34"
+    assert hops[3].address == "fe80::1%en0"
 
 
 def test_parse_windows_tracert_output() -> None:

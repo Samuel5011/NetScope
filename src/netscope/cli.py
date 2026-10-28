@@ -151,15 +151,18 @@ def main() -> None:
             ports = parse_ports(args.ports)
 
             for port_result in scan_ports(target, ports, timeout=args.timeout):
-                status = "OPEN" if port_result.open else "CLOSED"
+                status = port_result.state.upper()
 
                 service = (
                     f" ({port_result.service})"
                     if port_result.service is not None
                     else ""
                 )
+                error = (
+                    f" - {port_result.error}" if port_result.error is not None else ""
+                )
 
-                print(f"{port_result.port}/tcp: {status}{service}")
+                print(f"{port_result.port}/tcp: {status}{service}{error}")
 
     except (InvalidPortError, InvalidTargetError) as exc:
         parser.error(str(exc))

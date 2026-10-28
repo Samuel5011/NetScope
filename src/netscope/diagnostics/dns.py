@@ -10,7 +10,16 @@ def resolve_dns(target: Target) -> DNSResult:
     start = time.perf_counter()
 
     try:
-        ip_address = socket.gethostbyname(target.value)
+        addresses = socket.getaddrinfo(
+            target.value,
+            None,
+            family=socket.AF_UNSPEC,
+            type=socket.SOCK_STREAM,
+        )
+        if not addresses:
+            raise socket.gaierror("No addresses found")
+
+        ip_address = str(addresses[0][4][0])
         response_time_ms = (time.perf_counter() - start) * 1000
 
         return DNSResult(

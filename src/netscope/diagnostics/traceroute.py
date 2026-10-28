@@ -15,7 +15,7 @@ _BRACKETED_ADDRESS_PATTERN = re.compile(r"\[([^\[\]]+)\]")
 
 def _is_ip_address(value: str) -> bool:
     try:
-        ipaddress.ip_address(value.rstrip("%"))
+        ipaddress.ip_address(value.split("%", maxsplit=1)[0])
     except ValueError:
         return False
     return True
