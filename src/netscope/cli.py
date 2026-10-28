@@ -3,11 +3,11 @@ import ipaddress
 
 from netscope.diagnostics.dns import resolve_dns
 from netscope.diagnostics.ping import ping_target
-from netscope.diagnostics.port_scanner import scan_port
+from netscope.diagnostics.port_scanner import scan_ports
 from netscope.diagnostics.traceroute import trace_route
-from netscope.exceptions import InvalidTargetError
+from netscope.exceptions import InvalidPortError, InvalidTargetError
 from netscope.models.target import Target
-from netscope.utils.validation import validate_target
+from netscope.utils.validation import parse_ports, validate_target
 
 
 def _get_target_type(value: str) -> str:
@@ -81,7 +81,13 @@ def main() -> None:
     scan_parser.add_argument(
         "--ports",
         default="22,80,443",
-        help="Comma-separated TCP ports (default: 22,80,443)",
+        help="TCP ports and ranges, such as 22,80,8000-8010 (default: 22,80,443)",
+    )
+    scan_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=1.0,
+        help="Connection timeout in seconds (default: 1.0)",
     )
 
     args = parser.parse_args()
@@ -140,17 +146,11 @@ def main() -> None:
                 print(f"Error: {trace_result.error}")
 
         elif args.command == "scan":
-            try:
-                ports = [int(port.strip()) for port in args.ports.split(",")]
-            except ValueError:
-                parser.error("Ports must be comma-separated numbers")
+            if args.timeout <= 0:
+                parser.error("Timeout must be greater than 0")
+            ports = parse_ports(args.ports)
 
-            for port in ports:
-                if not 1 <= port <= 65535:
-                    parser.error(f"Invalid port: {port}")
-
-                port_result = scan_port(target, port)
-
+            for port_result in scan_ports(target, ports, timeout=args.timeout):
                 status = "OPEN" if port_result.open else "CLOSED"
 
                 service = (
@@ -159,7 +159,7 @@ def main() -> None:
                     else ""
                 )
 
-                print(f"{port}/tcp: {status}{service}")
+                print(f"{port_result.port}/tcp: {status}{service}")
 
-    except InvalidTargetError as exc:
+    except (InvalidPortError, InvalidTargetError) as exc:
         parser.error(str(exc))

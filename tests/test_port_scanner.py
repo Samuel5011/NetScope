@@ -1,6 +1,9 @@
 import socket
 
-from netscope.diagnostics.port_scanner import scan_port
+import pytest
+
+from netscope.diagnostics.port_scanner import scan_port, scan_ports
+from netscope.exceptions import InvalidPortError
 from netscope.models.target import Target
 
 
@@ -57,3 +60,32 @@ def test_closed_port(monkeypatch) -> None:
     assert result.open is False
     assert result.service is None
     assert result.error is not None
+
+
+def test_scan_ports_preserves_order(monkeypatch) -> None:
+    target = Target(value="example.com", target_type="hostname")
+
+    def refuse_connection(address, timeout):
+        raise ConnectionRefusedError("Connection refused")
+
+    monkeypatch.setattr(socket, "create_connection", refuse_connection)
+
+    results = scan_ports(target, [443, 80], timeout=0.25)
+
+    assert [result.port for result in results] == [443, 80]
+    assert all(result.open is False for result in results)
+
+
+@pytest.mark.parametrize("port", [0, 65536])
+def test_scan_port_rejects_out_of_range_port(port: int) -> None:
+    target = Target(value="example.com", target_type="hostname")
+
+    with pytest.raises(InvalidPortError):
+        scan_port(target, port)
+
+
+def test_scan_port_rejects_non_positive_timeout() -> None:
+    target = Target(value="example.com", target_type="hostname")
+
+    with pytest.raises(ValueError, match="Timeout must be greater than 0"):
+        scan_port(target, 443, timeout=0)

@@ -2,6 +2,7 @@ import socket
 
 from netscope.models.port_result import PortResult
 from netscope.models.target import Target
+from netscope.utils.validation import validate_port
 
 
 def scan_port(
@@ -10,6 +11,10 @@ def scan_port(
     timeout: float = 1.0,
 ) -> PortResult:
     """Try one TCP port and report whether it accepted a connection."""
+    validate_port(port)
+    if timeout <= 0:
+        raise ValueError("Timeout must be greater than 0")
+
     try:
         # A successful TCP connection is enough to treat the port as open.
         with socket.create_connection(
@@ -38,3 +43,12 @@ def scan_port(
             service=None,
             error=str(exc),
         )
+
+
+def scan_ports(
+    target: Target,
+    ports: list[int],
+    timeout: float = 1.0,
+) -> list[PortResult]:
+    """Scan several TCP ports in the supplied order."""
+    return [scan_port(target, port, timeout) for port in ports]
