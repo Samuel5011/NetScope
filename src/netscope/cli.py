@@ -7,7 +7,12 @@ from netscope.diagnostics.port_scanner import scan_ports
 from netscope.diagnostics.traceroute import trace_route
 from netscope.exceptions import InvalidPortError, InvalidTargetError
 from netscope.models.target import Target
-from netscope.services.report_service import create_report, format_json_report
+from netscope.services.diagnostic_service import run_diagnostics
+from netscope.services.report_service import (
+    create_report,
+    format_json_report,
+    format_text_report,
+)
 from netscope.utils.validation import parse_ports, validate_target
 
 
@@ -103,6 +108,36 @@ def main() -> None:
     )
     _add_json_argument(scan_parser)
 
+    diagnose_parser = subparsers.add_parser(
+        "diagnose",
+        help="Run a combined network diagnostic",
+    )
+    diagnose_parser.add_argument("target")
+    diagnose_parser.add_argument(
+        "--ports",
+        default="22,80,443",
+        help="TCP ports and ranges, such as 22,80,8000-8010 (default: 22,80,443)",
+    )
+    diagnose_parser.add_argument(
+        "--port-timeout",
+        type=float,
+        default=1.0,
+        help="TCP connection timeout in seconds (default: 1.0)",
+    )
+    diagnose_parser.add_argument(
+        "--max-hops",
+        type=int,
+        default=30,
+        help="Maximum traceroute hops (default: 30)",
+    )
+    diagnose_parser.add_argument(
+        "--trace-timeout",
+        type=float,
+        default=2.0,
+        help="Traceroute response timeout in seconds (default: 2.0)",
+    )
+    _add_json_argument(diagnose_parser)
+
     args = parser.parse_args()
 
     try:
@@ -191,6 +226,24 @@ def main() -> None:
                     )
 
                     print(f"{port_result.port}/tcp: {status}{service}{error}")
+
+        elif args.command == "diagnose":
+            if args.port_timeout <= 0:
+                parser.error("Port timeout must be greater than 0")
+            if args.max_hops < 1:
+                parser.error("Maximum hops must be at least 1")
+            if args.trace_timeout <= 0:
+                parser.error("Trace timeout must be greater than 0")
+
+            report = run_diagnostics(
+                target,
+                parse_ports(args.ports),
+                port_timeout=args.port_timeout,
+                max_hops=args.max_hops,
+                trace_timeout=args.trace_timeout,
+            )
+            formatter = format_json_report if args.json else format_text_report
+            print(formatter(report))
 
     except (InvalidPortError, InvalidTargetError) as exc:
         parser.error(str(exc))
