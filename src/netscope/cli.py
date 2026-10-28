@@ -4,6 +4,7 @@ import ipaddress
 from netscope.diagnostics.dns import resolve_dns
 from netscope.diagnostics.ping import ping_target
 from netscope.diagnostics.port_scanner import scan_port
+from netscope.diagnostics.traceroute import trace_route
 from netscope.exceptions import InvalidTargetError
 from netscope.models.target import Target
 from netscope.utils.validation import validate_target
@@ -54,6 +55,24 @@ def main() -> None:
     )
     ping_parser.add_argument("target")
 
+    trace_parser = subparsers.add_parser(
+        "trace",
+        help="Trace the network path to a target",
+    )
+    trace_parser.add_argument("target")
+    trace_parser.add_argument(
+        "--max-hops",
+        type=int,
+        default=30,
+        help="Maximum number of hops (default: 30)",
+    )
+    trace_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=2.0,
+        help="Seconds to wait for each response (default: 2.0)",
+    )
+
     scan_parser = subparsers.add_parser(
         "scan",
         help="Scan TCP ports on a target",
@@ -94,6 +113,31 @@ def main() -> None:
 
             if ping_result.error:
                 print(f"Error: {ping_result.error}")
+
+        elif args.command == "trace":
+            if args.max_hops < 1:
+                parser.error("Maximum hops must be at least 1")
+            if args.timeout <= 0:
+                parser.error("Timeout must be greater than 0")
+
+            trace_result = trace_route(
+                target,
+                max_hops=args.max_hops,
+                timeout=args.timeout,
+            )
+
+            print(f"Traceroute to {trace_result.target.value}")
+            for hop in trace_result.hops:
+                identity = hop.address or "*"
+                if hop.hostname is not None:
+                    identity = f"{hop.hostname} ({identity})"
+                latencies = " ".join(
+                    f"{response_time:.2f} ms" for response_time in hop.response_times_ms
+                )
+                print(f"{hop.number:2}  {identity}  {latencies}".rstrip())
+
+            if trace_result.error:
+                print(f"Error: {trace_result.error}")
 
         elif args.command == "scan":
             try:
