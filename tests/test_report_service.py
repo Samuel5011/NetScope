@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from netscope.models.dns_result import DNSResult
@@ -5,7 +6,12 @@ from netscope.models.ping_result import PingResult
 from netscope.models.port_result import PortResult
 from netscope.models.target import Target
 from netscope.models.trace_result import TraceHop, TraceResult
-from netscope.services.report_service import create_report, format_text_report
+from netscope.services.report_service import (
+    create_report,
+    format_json_report,
+    format_text_report,
+    report_to_dict,
+)
 
 
 def test_create_report_uses_supplied_results() -> None:
@@ -76,3 +82,48 @@ def test_format_text_report_includes_errors_and_missing_values() -> None:
     assert "Packet loss: unavailable" in output
     assert "No hops returned" in output
     assert "443/tcp: FILTERED - Connection timed out" in output
+
+
+def test_report_to_dict_has_stable_json_structure() -> None:
+    target = Target(value="example.com", target_type="hostname")
+    report = create_report(
+        target,
+        generated_at=datetime(2026, 10, 28, 12, 0, tzinfo=UTC),
+        dns=DNSResult(target, "93.184.216.34", True, 2.5),
+        ports=[PortResult(target, 443, True, "open", "https")],
+    )
+
+    data = report_to_dict(report)
+
+    assert data["target"] == {"value": "example.com", "type": "hostname"}
+    assert data["generated_at"] == "2026-10-28T12:00:00+00:00"
+    assert data["dns"] == {
+        "success": True,
+        "ip_address": "93.184.216.34",
+        "response_time_ms": 2.5,
+        "error": None,
+    }
+    assert data["ping"] is None
+    assert data["traceroute"] is None
+    assert data["ports"] == [
+        {
+            "port": 443,
+            "state": "open",
+            "open": True,
+            "service": "https",
+            "error": None,
+        }
+    ]
+
+
+def test_format_json_report_returns_valid_json() -> None:
+    target = Target(value="example.com", target_type="hostname")
+    report = create_report(
+        target,
+        generated_at=datetime(2026, 10, 28, 12, 0, tzinfo=UTC),
+        ping=PingResult(target, True, 4.2, 0.0),
+    )
+
+    output = format_json_report(report)
+
+    assert json.loads(output)["ping"]["reachable"] is True

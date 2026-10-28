@@ -7,6 +7,7 @@ from netscope.diagnostics.port_scanner import scan_ports
 from netscope.diagnostics.traceroute import trace_route
 from netscope.exceptions import InvalidPortError, InvalidTargetError
 from netscope.models.target import Target
+from netscope.services.report_service import create_report, format_json_report
 from netscope.utils.validation import parse_ports, validate_target
 
 
@@ -32,6 +33,14 @@ def _create_target(value: str) -> Target:
     )
 
 
+def _add_json_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output the diagnostic result as JSON",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="netscope",
@@ -48,12 +57,14 @@ def main() -> None:
         help="Resolve a target using DNS",
     )
     dns_parser.add_argument("target")
+    _add_json_argument(dns_parser)
 
     ping_parser = subparsers.add_parser(
         "ping",
         help="Ping a network target",
     )
     ping_parser.add_argument("target")
+    _add_json_argument(ping_parser)
 
     trace_parser = subparsers.add_parser(
         "trace",
@@ -72,6 +83,7 @@ def main() -> None:
         default=2.0,
         help="Seconds to wait for each response (default: 2.0)",
     )
+    _add_json_argument(trace_parser)
 
     scan_parser = subparsers.add_parser(
         "scan",
@@ -89,6 +101,7 @@ def main() -> None:
         default=1.0,
         help="Connection timeout in seconds (default: 1.0)",
     )
+    _add_json_argument(scan_parser)
 
     args = parser.parse_args()
 
@@ -98,7 +111,9 @@ def main() -> None:
         if args.command == "dns":
             dns_result = resolve_dns(target)
 
-            if dns_result.success:
+            if args.json:
+                print(format_json_report(create_report(target, dns=dns_result)))
+            elif dns_result.success:
                 print(f"Target: {dns_result.target.value}")
                 print(f"IP address: {dns_result.ip_address}")
                 print(f"Response time: {dns_result.response_time_ms:.2f} ms")
@@ -108,17 +123,20 @@ def main() -> None:
         elif args.command == "ping":
             ping_result = ping_target(target)
 
-            print(f"Target: {ping_result.target.value}")
-            print(f"Reachable: {'Yes' if ping_result.reachable else 'No'}")
+            if args.json:
+                print(format_json_report(create_report(target, ping=ping_result)))
+            else:
+                print(f"Target: {ping_result.target.value}")
+                print(f"Reachable: {'Yes' if ping_result.reachable else 'No'}")
 
-            if ping_result.response_time_ms is not None:
-                print(f"Average latency: " f"{ping_result.response_time_ms:.2f} ms")
+                if ping_result.response_time_ms is not None:
+                    print(f"Average latency: " f"{ping_result.response_time_ms:.2f} ms")
 
-            if ping_result.packet_loss_percent is not None:
-                print(f"Packet loss: " f"{ping_result.packet_loss_percent:.1f}%")
+                if ping_result.packet_loss_percent is not None:
+                    print(f"Packet loss: " f"{ping_result.packet_loss_percent:.1f}%")
 
-            if ping_result.error:
-                print(f"Error: {ping_result.error}")
+                if ping_result.error:
+                    print(f"Error: {ping_result.error}")
 
         elif args.command == "trace":
             if args.max_hops < 1:
@@ -132,37 +150,47 @@ def main() -> None:
                 timeout=args.timeout,
             )
 
-            print(f"Traceroute to {trace_result.target.value}")
-            for hop in trace_result.hops:
-                identity = hop.address or "*"
-                if hop.hostname is not None:
-                    identity = f"{hop.hostname} ({identity})"
-                latencies = " ".join(
-                    f"{response_time:.2f} ms" for response_time in hop.response_times_ms
-                )
-                print(f"{hop.number:2}  {identity}  {latencies}".rstrip())
+            if args.json:
+                print(format_json_report(create_report(target, trace=trace_result)))
+            else:
+                print(f"Traceroute to {trace_result.target.value}")
+                for hop in trace_result.hops:
+                    identity = hop.address or "*"
+                    if hop.hostname is not None:
+                        identity = f"{hop.hostname} ({identity})"
+                    latencies = " ".join(
+                        f"{response_time:.2f} ms"
+                        for response_time in hop.response_times_ms
+                    )
+                    print(f"{hop.number:2}  {identity}  {latencies}".rstrip())
 
-            if trace_result.error:
-                print(f"Error: {trace_result.error}")
+                if trace_result.error:
+                    print(f"Error: {trace_result.error}")
 
         elif args.command == "scan":
             if args.timeout <= 0:
                 parser.error("Timeout must be greater than 0")
             ports = parse_ports(args.ports)
+            port_results = scan_ports(target, ports, timeout=args.timeout)
 
-            for port_result in scan_ports(target, ports, timeout=args.timeout):
-                status = port_result.state.upper()
+            if args.json:
+                print(format_json_report(create_report(target, ports=port_results)))
+            else:
+                for port_result in port_results:
+                    status = port_result.state.upper()
 
-                service = (
-                    f" ({port_result.service})"
-                    if port_result.service is not None
-                    else ""
-                )
-                error = (
-                    f" - {port_result.error}" if port_result.error is not None else ""
-                )
+                    service = (
+                        f" ({port_result.service})"
+                        if port_result.service is not None
+                        else ""
+                    )
+                    error = (
+                        f" - {port_result.error}"
+                        if port_result.error is not None
+                        else ""
+                    )
 
-                print(f"{port_result.port}/tcp: {status}{service}{error}")
+                    print(f"{port_result.port}/tcp: {status}{service}{error}")
 
     except (InvalidPortError, InvalidTargetError) as exc:
         parser.error(str(exc))

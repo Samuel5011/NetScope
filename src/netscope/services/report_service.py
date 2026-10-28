@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 from netscope.models.diagnostic_report import DiagnosticReport
@@ -110,3 +111,68 @@ def format_text_report(report: DiagnosticReport) -> str:
             lines.append(f"  {port.port}/tcp: {port.state.upper()}{service}{error}")
 
     return "\n".join(lines)
+
+
+def report_to_dict(report: DiagnosticReport) -> dict[str, object]:
+    """Convert a diagnostic report to a JSON-compatible dictionary."""
+    dns: dict[str, object] | None = None
+    if report.dns is not None:
+        dns = {
+            "success": report.dns.success,
+            "ip_address": report.dns.ip_address,
+            "response_time_ms": report.dns.response_time_ms,
+            "error": report.dns.error,
+        }
+
+    ping: dict[str, object] | None = None
+    if report.ping is not None:
+        ping = {
+            "reachable": report.ping.reachable,
+            "response_time_ms": report.ping.response_time_ms,
+            "packet_loss_percent": report.ping.packet_loss_percent,
+            "error": report.ping.error,
+        }
+
+    trace: dict[str, object] | None = None
+    if report.trace is not None:
+        trace = {
+            "success": report.trace.success,
+            "hops": [
+                {
+                    "number": hop.number,
+                    "address": hop.address,
+                    "hostname": hop.hostname,
+                    "response_times_ms": hop.response_times_ms,
+                }
+                for hop in report.trace.hops
+            ],
+            "error": report.trace.error,
+        }
+
+    ports = [
+        {
+            "port": port.port,
+            "state": port.state,
+            "open": port.open,
+            "service": port.service,
+            "error": port.error,
+        }
+        for port in report.ports
+    ]
+
+    return {
+        "target": {
+            "value": report.target.value,
+            "type": report.target.target_type,
+        },
+        "generated_at": report.generated_at.isoformat(),
+        "dns": dns,
+        "ping": ping,
+        "traceroute": trace,
+        "ports": ports,
+    }
+
+
+def format_json_report(report: DiagnosticReport) -> str:
+    """Format a diagnostic report as indented JSON."""
+    return json.dumps(report_to_dict(report), indent=2)
