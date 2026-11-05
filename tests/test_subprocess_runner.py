@@ -16,9 +16,14 @@ def test_run_command_success(monkeypatch) -> None:
     assert result.error is None
 
 
-def test_run_command_handles_timeout(monkeypatch) -> None:
+def test_run_command_handles_timeout_and_preserves_output(monkeypatch) -> None:
     def time_out(*args, **kwargs):
-        raise subprocess.TimeoutExpired(cmd=["example"], timeout=2)
+        raise subprocess.TimeoutExpired(
+            cmd=["example"],
+            timeout=2,
+            output=b"partial output",
+            stderr=b"partial error",
+        )
 
     monkeypatch.setattr(subprocess, "run", time_out)
 
@@ -26,6 +31,9 @@ def test_run_command_handles_timeout(monkeypatch) -> None:
 
     assert result.returncode is None
     assert result.error == "Command timed out after 2 seconds"
+    assert result.stdout == "partial output"
+    assert result.stderr == "partial error"
+    assert result.timed_out is True
 
 
 def test_run_command_handles_missing_executable(monkeypatch) -> None:

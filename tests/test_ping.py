@@ -97,3 +97,41 @@ def test_ping_reports_unsupported_platform(monkeypatch) -> None:
 
     assert result.reachable is False
     assert result.error == "Unsupported platform: Plan 9"
+
+
+def test_ping_uses_macos_ipv6_command(monkeypatch) -> None:
+    target = Target(value="2001:db8::1", target_type="ipv6")
+    fake_result = subprocess.CompletedProcess(
+        args=["ping6"], returncode=1, stdout="100.0% packet loss", stderr=""
+    )
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return fake_result
+
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    ping_target(target, count=2)
+
+    assert commands == [["ping6", "-c", "2", "2001:db8::1"]]
+
+
+def test_ping_uses_linux_ipv6_flag(monkeypatch) -> None:
+    target = Target(value="2001:db8::1", target_type="ipv6")
+    fake_result = subprocess.CompletedProcess(
+        args=["ping"], returncode=1, stdout="100.0% packet loss", stderr=""
+    )
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append(command)
+        return fake_result
+
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    ping_target(target, count=2)
+
+    assert commands == [["ping", "-6", "-c", "2", "2001:db8::1"]]

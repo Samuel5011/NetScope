@@ -11,6 +11,7 @@ _HOP_PATTERN = re.compile(r"^\s*(\d+)\s+(.*)$")
 _LATENCY_PATTERN = re.compile(r"<?(\d+(?:\.\d+)?)\s*ms", re.IGNORECASE)
 _PARENTHESIZED_ADDRESS_PATTERN = re.compile(r"\(([^()]+)\)")
 _BRACKETED_ADDRESS_PATTERN = re.compile(r"\[([^\[\]]+)\]")
+_MAX_COMMAND_TIMEOUT = 60.0
 
 
 def _is_ip_address(value: str) -> bool:
@@ -36,6 +37,9 @@ def _find_address(value: str) -> str | None:
 
 
 def _find_hostname(value: str, address: str | None) -> str | None:
+    if address is None:
+        return None
+
     identity = _LATENCY_PATTERN.sub("", value).replace("*", " ")
     if address is not None:
         identity = identity.replace(f"({address})", "")
@@ -43,7 +47,9 @@ def _find_hostname(value: str, address: str | None) -> str | None:
         identity = identity.replace(address, "")
 
     identity = " ".join(identity.split())
-    if not identity or identity.lower().startswith("request timed out"):
+    if not identity or identity.startswith("!"):
+        return None
+    if identity.lower().startswith(("request timed out", "destination host")):
         return None
     return identity.split(maxsplit=1)[0]
 
@@ -60,14 +66,21 @@ def parse_traceroute_output(output: str) -> list[TraceHop]:
         number = int(match.group(1))
         hop_details = match.group(2)
         address = _find_address(hop_details)
+        response_times = [
+            float(value) for value in _LATENCY_PATTERN.findall(hop_details)
+        ]
+        unreachable = "*" in hop_details or any(
+            marker in hop_details.lower() for marker in ("timed out", "unreachable")
+        )
+        if address is None and not response_times and not unreachable:
+            continue
+
         hops.append(
             TraceHop(
                 number=number,
                 address=address,
                 hostname=_find_hostname(hop_details, address),
-                response_times_ms=[
-                    float(value) for value in _LATENCY_PATTERN.findall(hop_details)
-                ],
+                response_times_ms=response_times,
             )
         )
 
@@ -79,7 +92,8 @@ def _build_command(
     max_hops: int,
     timeout: float,
 ) -> list[str]:
-    if get_platform_name() == "windows":
+    system = get_platform_name()
+    if system == "windows":
         return [
             "tracert",
             "-d",
@@ -90,8 +104,16 @@ def _build_command(
             target.value,
         ]
 
+    if system == "darwin" and target.target_type == "ipv6":
+        executable = "traceroute6"
+        family_flag: list[str] = []
+    else:
+        executable = "traceroute"
+        family_flag = ["-6"] if target.target_type == "ipv6" else []
+
     return [
-        "traceroute",
+        executable,
+        *family_flag,
         "-n",
         "-m",
         str(max_hops),
@@ -117,18 +139,22 @@ def trace_route(
     except UnsupportedPlatformError as exc:
         return TraceResult(target=target, hops=[], success=False, error=str(exc))
 
-    result = run_command(command, max_hops * timeout * 3 + 5)
-    if result.error is not None:
-        return TraceResult(target=target, hops=[], success=False, error=result.error)
-
+    command_timeout = min(max_hops * timeout * 3 + 5, _MAX_COMMAND_TIMEOUT)
+    result = run_command(command, command_timeout)
     hops = parse_traceroute_output(result.stdout)
-    error = result.stderr.strip() or None
-    if result.returncode != 0 and error is None:
-        error = "Traceroute failed"
+    if result.error is not None:
+        return TraceResult(target=target, hops=hops, success=False, error=result.error)
+
+    success = result.returncode == 0 and bool(hops)
+    error: str | None = None
+    if result.returncode != 0:
+        error = result.stderr.strip() or "Traceroute failed"
+    elif not hops:
+        error = "Traceroute produced no hop data"
 
     return TraceResult(
         target=target,
         hops=hops,
-        success=result.returncode == 0,
+        success=success,
         error=error,
     )

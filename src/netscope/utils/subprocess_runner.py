@@ -8,6 +8,15 @@ class CommandResult:
     stderr: str
     returncode: int | None
     error: str | None = None
+    timed_out: bool = False
+
+
+def _as_text(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode(errors="replace")
+    return value
 
 
 def run_command(command: list[str], timeout: float) -> CommandResult:
@@ -20,12 +29,13 @@ def run_command(command: list[str], timeout: float) -> CommandResult:
             timeout=timeout,
             check=False,
         )
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as exc:
         return CommandResult(
-            stdout="",
-            stderr="",
+            stdout=_as_text(exc.stdout),
+            stderr=_as_text(exc.stderr),
             returncode=None,
             error=f"Command timed out after {timeout:g} seconds",
+            timed_out=True,
         )
     except FileNotFoundError:
         return CommandResult(

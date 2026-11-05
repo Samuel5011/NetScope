@@ -24,6 +24,17 @@ def _parse_first_float(
     return None
 
 
+def _build_command(target: Target, count: int, system: str) -> list[str]:
+    if system == "windows":
+        family_flag = ["-6"] if target.target_type == "ipv6" else []
+        return ["ping", *family_flag, "-n", str(count), target.value]
+    if system == "darwin" and target.target_type == "ipv6":
+        return ["ping6", "-c", str(count), target.value]
+
+    family_flag = ["-6"] if target.target_type == "ipv6" else []
+    return ["ping", *family_flag, "-c", str(count), target.value]
+
+
 def ping_target(target: Target, count: int = 4, timeout: float = 10.0) -> PingResult:
     """Run ping and return the useful parts as a result object."""
     if count < 1:
@@ -36,8 +47,7 @@ def ping_target(target: Target, count: int = 4, timeout: float = 10.0) -> PingRe
     except UnsupportedPlatformError as exc:
         return PingResult(target, False, None, None, str(exc))
 
-    count_flag = "-n" if system == "windows" else "-c"
-    command = ["ping", count_flag, str(count), target.value]
+    command = _build_command(target, count, system)
     result = run_command(command, timeout)
 
     if result.error is not None:
