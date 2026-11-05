@@ -1,4 +1,5 @@
 import ipaddress
+import math
 import re
 
 from netscope.exceptions import UnsupportedPlatformError
@@ -131,7 +132,7 @@ def trace_route(
     """Trace the network path to a target."""
     if max_hops < 1:
         raise ValueError("Maximum hops must be at least 1")
-    if timeout <= 0:
+    if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout must be greater than 0")
 
     try:

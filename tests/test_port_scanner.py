@@ -87,14 +87,15 @@ def test_scan_port_rejects_out_of_range_port(port: int) -> None:
         scan_port(target, port)
 
 
-def test_scan_port_rejects_non_positive_timeout() -> None:
+@pytest.mark.parametrize("timeout", [0, float("nan"), float("inf")])
+def test_scan_port_rejects_invalid_timeout(timeout: float) -> None:
     target = Target(value="example.com", target_type="hostname")
 
     with pytest.raises(ValueError, match="Timeout must be greater than 0"):
-        scan_port(target, 443, timeout=0)
+        scan_port(target, 443, timeout=timeout)
 
 
-def test_timed_out_port_is_filtered(monkeypatch) -> None:
+def test_timed_out_port_has_timeout_state(monkeypatch) -> None:
     target = Target(value="example.com", target_type="hostname")
 
     def time_out(address, timeout):
@@ -105,7 +106,7 @@ def test_timed_out_port_is_filtered(monkeypatch) -> None:
     result = scan_port(target, 443)
 
     assert result.open is False
-    assert result.state == "filtered"
+    assert result.state == "timeout"
     assert result.error == "Connection timed out"
 
 

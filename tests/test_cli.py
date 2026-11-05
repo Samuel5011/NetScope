@@ -123,7 +123,7 @@ def test_scan_command_parses_ranges_and_formats_states(monkeypatch, capsys) -> N
         return [
             PortResult(target, 80, True, "open", "http"),
             PortResult(target, 443, False, "closed"),
-            PortResult(target, 444, False, "filtered", error="Connection timed out"),
+            PortResult(target, 444, False, "timeout", error="Connection timed out"),
         ]
 
     monkeypatch.setattr(cli, "scan_ports", fake_scan)
@@ -134,7 +134,7 @@ def test_scan_command_parses_ranges_and_formats_states(monkeypatch, capsys) -> N
     assert capsys.readouterr().out == (
         "80/tcp: OPEN (http)\n"
         "443/tcp: CLOSED\n"
-        "444/tcp: FILTERED - Connection timed out\n"
+        "444/tcp: TIMEOUT - Connection timed out\n"
     )
 
 
@@ -168,9 +168,10 @@ def test_diagnose_command_formats_combined_report(monkeypatch, capsys) -> None:
         (("ping", "https://example.com"), "not a URL"),
         (("scan", "example.com", "--ports", "100-90"), "must be ascending"),
         (("trace", "example.com", "--max-hops", "0"), "at least 1"),
+        (("scan", "example.com", "--timeout", "nan"), "finite number"),
         (
             ("diagnose", "example.com", "--port-timeout", "0"),
-            "Port timeout must be greater than 0",
+            "finite number greater than 0",
         ),
     ],
 )

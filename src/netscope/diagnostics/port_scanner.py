@@ -1,3 +1,4 @@
+import math
 import socket
 
 from netscope.models.port_result import PortResult
@@ -12,7 +13,7 @@ def scan_port(
 ) -> PortResult:
     """Try one TCP port and report whether it accepted a connection."""
     validate_port(port)
-    if timeout <= 0:
+    if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout must be greater than 0")
 
     try:
@@ -50,7 +51,7 @@ def scan_port(
             target=target,
             port=port,
             open=False,
-            state="filtered",
+            state="timeout",
             service=None,
             error="Connection timed out",
         )

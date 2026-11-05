@@ -29,7 +29,7 @@ def resolve_dns(target: Target) -> DNSResult:
             response_time_ms=response_time_ms,
         )
 
-    except socket.gaierror as exc:
+    except (OSError, UnicodeError) as exc:
         # Bad hostnames are still a normal diagnostic result, not a crash.
         response_time_ms = (time.perf_counter() - start) * 1000
 

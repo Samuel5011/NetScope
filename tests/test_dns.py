@@ -59,3 +59,17 @@ def test_dns_lookup_failure(monkeypatch) -> None:
     assert result.success is False
     assert result.ip_address is None
     assert result.error == "Name or service not known"
+
+
+def test_dns_lookup_handles_other_os_errors(monkeypatch) -> None:
+    target = Target(value="example.com", target_type="hostname")
+
+    def fail_lookup(*args, **kwargs):
+        raise OSError("resolver unavailable")
+
+    monkeypatch.setattr(socket, "getaddrinfo", fail_lookup)
+
+    result = resolve_dns(target)
+
+    assert result.success is False
+    assert result.error == "resolver unavailable"

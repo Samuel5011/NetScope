@@ -48,3 +48,36 @@ def test_run_diagnostics_combines_all_results(monkeypatch) -> None:
     assert report.ports == port_results
     assert trace_arguments == [(12, 1.5)]
     assert scan_arguments == [([80, 443], 0.25)]
+
+
+def test_run_diagnostics_keeps_going_after_unexpected_failures(monkeypatch) -> None:
+    target = Target(value="example.com", target_type="hostname")
+
+    def fail(name: str):
+        def raise_error(*args, **kwargs):
+            raise RuntimeError(f"{name} failed")
+
+        return raise_error
+
+    monkeypatch.setattr(diagnostic_service, "resolve_dns", fail("resolver"))
+    monkeypatch.setattr(diagnostic_service, "ping_target", fail("ping"))
+    monkeypatch.setattr(diagnostic_service, "trace_route", fail("trace"))
+    monkeypatch.setattr(diagnostic_service, "scan_ports", fail("scanner"))
+
+    report = diagnostic_service.run_diagnostics(target, [80, 443])
+
+    assert report.dns is not None
+    assert report.dns.success is False
+    assert report.dns.error == "Unexpected DNS error: resolver failed"
+    assert report.ping is not None
+    assert report.ping.reachable is False
+    assert report.ping.error == "Unexpected ping error: ping failed"
+    assert report.trace is not None
+    assert report.trace.success is False
+    assert report.trace.error == "Unexpected traceroute error: trace failed"
+    assert [result.port for result in report.ports] == [80, 443]
+    assert all(result.state == "error" for result in report.ports)
+    assert all(
+        result.error == "Unexpected port scan error: scanner failed"
+        for result in report.ports
+    )

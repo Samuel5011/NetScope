@@ -1,3 +1,4 @@
+import math
 import re
 
 from netscope.exceptions import UnsupportedPlatformError
@@ -39,7 +40,7 @@ def ping_target(target: Target, count: int = 4, timeout: float = 10.0) -> PingRe
     """Run ping and return the useful parts as a result object."""
     if count < 1:
         raise ValueError("Ping count must be at least 1")
-    if timeout <= 0:
+    if not math.isfinite(timeout) or timeout <= 0:
         raise ValueError("Timeout must be greater than 0")
 
     try:

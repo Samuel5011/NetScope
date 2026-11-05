@@ -1,5 +1,6 @@
 import argparse
 import ipaddress
+import math
 from importlib.metadata import PackageNotFoundError, version
 
 from netscope.diagnostics.dns import resolve_dns
@@ -58,6 +59,20 @@ def _get_version() -> str:
         return "unknown"
 
 
+def _positive_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than 0")
+    return number
+
+
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return number
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="netscope",
@@ -96,13 +111,13 @@ def main() -> None:
     _add_target_argument(trace_parser)
     trace_parser.add_argument(
         "--max-hops",
-        type=int,
+        type=_positive_int,
         default=30,
         help="Maximum number of hops (default: 30)",
     )
     trace_parser.add_argument(
         "--timeout",
-        type=float,
+        type=_positive_float,
         default=2.0,
         help="Seconds to wait for each response (default: 2.0)",
     )
@@ -120,7 +135,7 @@ def main() -> None:
     )
     scan_parser.add_argument(
         "--timeout",
-        type=float,
+        type=_positive_float,
         default=1.0,
         help="Connection timeout in seconds (default: 1.0)",
     )
@@ -138,19 +153,19 @@ def main() -> None:
     )
     diagnose_parser.add_argument(
         "--port-timeout",
-        type=float,
+        type=_positive_float,
         default=1.0,
         help="TCP connection timeout in seconds (default: 1.0)",
     )
     diagnose_parser.add_argument(
         "--max-hops",
-        type=int,
+        type=_positive_int,
         default=30,
         help="Maximum traceroute hops (default: 30)",
     )
     diagnose_parser.add_argument(
         "--trace-timeout",
-        type=float,
+        type=_positive_float,
         default=2.0,
         help="Traceroute response timeout in seconds (default: 2.0)",
     )
@@ -192,11 +207,6 @@ def main() -> None:
                     print(f"Error: {ping_result.error}")
 
         elif args.command == "trace":
-            if args.max_hops < 1:
-                parser.error("Maximum hops must be at least 1")
-            if args.timeout <= 0:
-                parser.error("Timeout must be greater than 0")
-
             trace_result = trace_route(
                 target,
                 max_hops=args.max_hops,
@@ -221,8 +231,6 @@ def main() -> None:
                     print(f"Error: {trace_result.error}")
 
         elif args.command == "scan":
-            if args.timeout <= 0:
-                parser.error("Timeout must be greater than 0")
             ports = parse_ports(args.ports)
             port_results = scan_ports(target, ports, timeout=args.timeout)
 
@@ -246,13 +254,6 @@ def main() -> None:
                     print(f"{port_result.port}/tcp: {status}{service}{error}")
 
         elif args.command == "diagnose":
-            if args.port_timeout <= 0:
-                parser.error("Port timeout must be greater than 0")
-            if args.max_hops < 1:
-                parser.error("Maximum hops must be at least 1")
-            if args.trace_timeout <= 0:
-                parser.error("Trace timeout must be greater than 0")
-
             report = run_diagnostics(
                 target,
                 parse_ports(args.ports),

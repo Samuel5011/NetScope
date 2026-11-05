@@ -69,7 +69,7 @@ def test_format_text_report_includes_errors_and_missing_values() -> None:
                 target,
                 443,
                 False,
-                "filtered",
+                "timeout",
                 error="Connection timed out",
             )
         ],
@@ -81,7 +81,7 @@ def test_format_text_report_includes_errors_and_missing_values() -> None:
     assert "Average latency: unavailable" in output
     assert "Packet loss: unavailable" in output
     assert "No hops returned" in output
-    assert "443/tcp: FILTERED - Connection timed out" in output
+    assert "443/tcp: TIMEOUT - Connection timed out" in output
 
 
 def test_report_to_dict_has_stable_json_structure() -> None:
@@ -127,3 +127,29 @@ def test_format_json_report_returns_valid_json() -> None:
     output = format_json_report(report)
 
     assert json.loads(output)["ping"]["reachable"] is True
+
+
+def test_json_report_preserves_failures_and_timeout_states() -> None:
+    target = Target(value="missing.example", target_type="hostname")
+    report = create_report(
+        target,
+        generated_at=datetime(2026, 10, 28, 12, 0, tzinfo=UTC),
+        dns=DNSResult(target, None, False, 1.0, "Name not known"),
+        trace=TraceResult(target, [], False, "Traceroute failed"),
+        ports=[
+            PortResult(
+                target,
+                443,
+                False,
+                "timeout",
+                error="Connection timed out",
+            )
+        ],
+    )
+
+    data = json.loads(format_json_report(report))
+
+    assert data["dns"]["success"] is False
+    assert data["dns"]["error"] == "Name not known"
+    assert data["traceroute"]["success"] is False
+    assert data["ports"][0]["state"] == "timeout"

@@ -9,6 +9,6 @@ class PortResult:
     target: Target
     port: int
     open: bool
-    state: Literal["open", "closed", "filtered", "error"]
+    state: Literal["open", "closed", "timeout", "error"]
     service: str | None = None
     error: str | None = None
