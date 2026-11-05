@@ -9,7 +9,7 @@ NetScope is a Python command-line toolkit for network troubleshooting and connec
 - Ping reachability, latency, and packet-loss reporting
 - Traceroute with parsed hop addresses and response times
 - TCP scanning for individual ports, lists, and ranges
-- Open, closed, filtered, and error scan states
+- Open, closed, timeout, and error scan states
 - Combined diagnostic reports in text or JSON
 - Automated tests, formatting, linting, and strict type checking
 
@@ -93,6 +93,14 @@ netscope diagnose --help
 
 More output samples are in [docs/examples.md](docs/examples.md), and the internal design is described in [docs/architecture.md](docs/architecture.md).
 
+## Limitations
+
+- A TCP timeout is reported as `TIMEOUT`; it does not prove that a firewall filtered the port.
+- Traceroute is capped at 60 seconds and may return partial hops when that limit is reached.
+- Large port ranges are scanned sequentially and can take time on slow or unreachable networks.
+- Network policy, DNS configuration, ICMP filtering, and utility permissions can affect results.
+- Windows command handling is covered by automated tests but has not been live-verified.
+
 ## Development
 
 Run the required quality checks before committing:
@@ -104,4 +112,4 @@ mypy src
 pytest
 ```
 
-The current suite contains 63 tests covering diagnostics, parsing, report formatting, JSON serialization, platform command handling, and CLI integration.
+The current suite contains 76 tests covering diagnostics, parsing, report formatting, JSON serialization, platform command handling, failure isolation, and CLI integration.

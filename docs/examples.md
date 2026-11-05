@@ -53,12 +53,14 @@ netscope scan example.com --ports 22,80,443,8000-8002
 22/tcp: CLOSED
 80/tcp: OPEN (http)
 443/tcp: OPEN (https)
-8000/tcp: FILTERED - Connection timed out
+8000/tcp: TIMEOUT - Connection timed out
 8001/tcp: CLOSED
 8002/tcp: CLOSED
 ```
 
 Repeated ports are scanned once. Ranges must be ascending, and every port must be between 1 and 65535.
+
+`TIMEOUT` means the connection attempt received no answer within the configured limit. It does not confirm that a firewall filtered the port.
 
 ## Combined diagnostic
 
@@ -67,6 +69,8 @@ netscope diagnose example.com --ports 80,443
 ```
 
 The report contains a timestamped target header followed by DNS, ping, traceroute, and TCP port sections. Timeout controls are available through `--port-timeout`, `--trace-timeout`, and `--max-hops`.
+
+If one diagnostic fails, its error is included and the remaining diagnostics continue.
 
 ## JSON output
 
