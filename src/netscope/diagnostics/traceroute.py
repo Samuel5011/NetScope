@@ -112,6 +112,8 @@ def _build_command(
         executable = "traceroute"
         family_flag = ["-6"] if target.target_type == "ipv6" else []
 
+    wait_time = str(math.ceil(timeout)) if system == "darwin" else str(timeout)
+
     return [
         executable,
         *family_flag,
@@ -119,7 +121,7 @@ def _build_command(
         "-m",
         str(max_hops),
         "-w",
-        str(timeout),
+        wait_time,
         target.value,
     ]
 

@@ -146,3 +146,12 @@ def test_traceroute_uses_platform_ipv6_commands(monkeypatch) -> None:
 
     monkeypatch.setattr(platform, "system", lambda: "Windows")
     assert _build_command(target, 10, 1.0)[0] == "tracert"
+
+
+def test_macos_traceroute_uses_integer_wait_time(monkeypatch) -> None:
+    target = Target(value="example.com", target_type="hostname")
+    monkeypatch.setattr(platform, "system", lambda: "Darwin")
+
+    command = _build_command(target, 10, 1.5)
+
+    assert command[command.index("-w") + 1] == "2"
